@@ -87,7 +87,3 @@ configurations.all {
     exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-common")
 }
 
-// Temporarily disable duplicate classes check to get basic build working
-tasks.named("checkDebugDuplicateClasses") {
-    enabled = false
-}
