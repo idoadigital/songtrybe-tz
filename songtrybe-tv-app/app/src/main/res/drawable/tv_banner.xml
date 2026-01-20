@@ -5,71 +5,33 @@
     android:viewportWidth="320"
     android:viewportHeight="180">
     
-    <!-- Background -->
+    <!-- Background with gradient -->
     <path
         android:pathData="M0,0h320v180h-320z"
-        android:fillColor="#1a1a1a"/>
-    
-    <!-- Gradient overlay -->
-    <path
-        android:pathData="M0,0h320v180h-320z"
-        android:fillType="evenOdd">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="0"
-                android:startY="0"
-                android:endX="320"
-                android:endY="180"
-                android:type="linear">
-                <item android:offset="0" android:color="#FF6200EE"/>
-                <item android:offset="1" android:color="#FF3700B3"/>
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:fillColor="#6200EE"/>
     
     <!-- Music note icon -->
     <path
-        android:pathData="M100,60c-2.76,0 -5,2.24 -5,5v30c-2.28,-1.23 -4.97,-2 -8,-2c-8.84,0 -16,7.16 -16,16s7.16,16 16,16s16,-7.16 16,-16V78l20,-6v17c-2.28,-1.23 -4.97,-2 -8,-2c-8.84,0 -16,7.16 -16,16s7.16,16 16,16s16,-7.16 16,-16V65c0,-2.76 -2.24,-5 -5,-5H100z"
+        android:pathData="M80,60c-2.76,0 -5,2.24 -5,5v30c-2.28,-1.23 -4.97,-2 -8,-2c-8.84,0 -16,7.16 -16,16s7.16,16 16,16s16,-7.16 16,-16V78l20,-6v17c-2.28,-1.23 -4.97,-2 -8,-2c-8.84,0 -16,7.16 -16,16s7.16,16 16,16s16,-7.16 16,-16V65c0,-2.76 -2.24,-5 -5,-5H80z"
         android:fillColor="#FFFFFF"/>
     
-    <!-- Text: Songtrybe -->
+    <!-- TV icon -->
     <path
-        android:pathData="M140,70h8c4.4,0 8,3.6 8,8s-3.6,8 -8,8h-8v-16z"
+        android:pathData="M240,70h40v25h-40z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="none"/>
+    
+    <path
+        android:pathData="M250,95h20v5h-20z"
         android:fillColor="#FFFFFF"/>
     
-    <!-- Simple text representation -->
-    <group
-        android:translateX="140"
-        android:translateY="60">
-        <!-- S -->
-        <path
-            android:pathData="M0,0h12v4h-8v4h6v4h-6v4h8v4h-12v-20z"
-            android:fillColor="#FFFFFF"/>
-        <!-- O -->
-        <path
-            android:pathData="M16,0h8v20h-8c-2.2,0 -4,-1.8 -4,-4v-12c0,-2.2 1.8,-4 4,-4z"
-            android:fillColor="#FFFFFF"/>
-        <!-- N -->
-        <path
-            android:pathData="M28,0h4v20h-4v-12l8,12h4v-20h-4v12l-8,-12z"
-            android:fillColor="#FFFFFF"/>
-        <!-- G -->
-        <path
-            android:pathData="M44,0h12v4h-8v4h6v8h-10v-4h6v-4h-6v-8z"
-            android:fillColor="#FFFFFF"/>
-    </group>
+    <!-- Simple text "SONGTRYBE TV" -->
+    <path
+        android:pathData="M120,90h80v8h-80z"
+        android:fillColor="#FFFFFF"/>
     
-    <!-- TV text -->
-    <group
-        android:translateX="140"
-        android:translateY="100">
-        <!-- T -->
-        <path
-            android:pathData="M0,0h16v4h-6v16h-4v-16h-6v-4z"
-            android:fillColor="#FFFFFF"/>
-        <!-- V -->
-        <path
-            android:pathData="M20,0h4l4,16h-4l-2,-8l-2,8h-4l4,-16z"
-            android:fillColor="#FFFFFF"/>
-    </group>
+    <path
+        android:pathData="M120,105h100v6h-100z"
+        android:fillColor="#FFFFFF"/>
 </vector>
