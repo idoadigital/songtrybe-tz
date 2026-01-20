@@ -5,7 +5,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
     inputs:
       build_type:
         description: 'Build Type'
@@ -20,6 +20,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
     - name: 📥 Checkout code
@@ -30,7 +31,22 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+        # Use larger heap for Java in CI
+        java-package: jdk
+    
+    - name: 🛠️ Setup Gradle
+      uses: gradle/actions/setup-gradle@v5
+      with:
+        # Enable caching but with safeguards
+        cache-read-only: false
+        # Add validation
+        gradle-home-cache-includes: |
+          caches
+          notifications
+          wrapper
+        gradle-home-cache-excludes: |
+          caches/build-cache-*
+          caches/*/tmp
     
     - name: 🤖 Setup Android SDK
       uses: android-actions/setup-android@v3
@@ -46,39 +62,55 @@ jobs:
           echo "⚠️ Warning: GOOGLE_SERVICES_JSON secret not set, using existing file"
         fi
     
-    - name: 🛠️ Setup Gradle wrapper
+    - name: 🛠️ Prepare Gradle wrapper
       run: |
         cd songtrybe-tv-app
         chmod +x gradlew
-        chmod +x download-gradle-wrapper.sh
         
         # Download gradle wrapper jar if it doesn't exist
         if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
           echo "📥 Downloading Gradle wrapper jar..."
+          chmod +x download-gradle-wrapper.sh
           ./download-gradle-wrapper.sh
         else
           echo "✅ Gradle wrapper jar already exists"
         fi
         
-        # Verify gradlew works
-        ./gradlew --version
+        # Verify gradlew works with minimal command
+        echo "🔍 Testing Gradle wrapper..."
+        ./gradlew --version --no-daemon
+    
+    - name: 🧹 Clean build
+      run: |
+        cd songtrybe-tv-app
+        ./gradlew clean --no-daemon --max-workers=2 --stacktrace
+      env:
+        # Set memory limits for CI environment
+        GRADLE_OPTS: -Xmx3g -Xms1g -XX:MaxMetaspaceSize=512m
+        _JAVA_OPTIONS: -Xmx3g
     
     - name: 📱 Build Debug APK
       if: github.event.inputs.build_type != 'release'
       run: |
         cd songtrybe-tv-app
-        ./gradlew assembleDebug --stacktrace
+        ./gradlew assembleDebug --no-daemon --max-workers=2 --stacktrace --info
         echo "✅ Debug APK built successfully"
         
         # Get APK size
-        APK_SIZE=$(ls -lh app/build/outputs/apk/debug/app-debug.apk | awk '{print $5}')
-        echo "📦 Debug APK size: $APK_SIZE"
+        if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+          APK_SIZE=$(ls -lh app/build/outputs/apk/debug/app-debug.apk | awk '{print $5}')
+          echo "📦 Debug APK size: $APK_SIZE"
+        fi
+      env:
+        GRADLE_OPTS: -Xmx3g -Xms1g -XX:MaxMetaspaceSize=512m
+        _JAVA_OPTIONS: -Xmx3g
+      timeout-minutes: 15
     
     - name: 🚀 Build Release APK
       if: github.event.inputs.build_type != 'debug'
       run: |
         cd songtrybe-tv-app
-        ./gradlew assembleRelease --stacktrace
+        ./gradlew assembleRelease --no-daemon --max-workers=2 --stacktrace --info
         echo "✅ Release APK built successfully"
         
         # Get APK size
@@ -86,9 +118,13 @@ jobs:
           APK_SIZE=$(ls -lh app/build/outputs/apk/release/app-release-unsigned.apk | awk '{print $5}')
           echo "📦 Release APK size: $APK_SIZE"
         fi
+      env:
+        GRADLE_OPTS: -Xmx3g -Xms1g -XX:MaxMetaspaceSize=512m
+        _JAVA_OPTIONS: -Xmx3g
+      timeout-minutes: 15
     
     - name: 🌐 Upload to Appetize.io
-      if: github.event.inputs.build_type != 'release'
+      if: github.event.inputs.build_type != 'release' && success()
       run: |
         cd songtrybe-tv-app
         
@@ -100,30 +136,36 @@ jobs:
         
         echo "🌐 Uploading APK to Appetize.io..."
         
-        # Upload to Appetize.io
-        RESPONSE=$(curl -s -X POST \
+        # Upload to Appetize.io with timeout
+        RESPONSE=$(timeout 60 curl -s -X POST \
           -F "file=@app/build/outputs/apk/debug/app-debug.apk" \
           -F "platform=android" \
           -F "note=Songtrybe TV - Built from commit ${{ github.sha }}" \
           -H "Authorization: Bearer tok_w73vyuwk3ugwuff2q3bqb3grli" \
-          https://api.appetize.io/v1/apps)
+          https://api.appetize.io/v1/apps || echo "UPLOAD_TIMEOUT")
         
-        echo "Appetize.io Response: $RESPONSE"
-        
-        # Extract app URL from response
-        APP_URL=$(echo $RESPONSE | grep -o '"publicURL":"[^"]*"' | cut -d'"' -f4)
-        
-        if [ ! -z "$APP_URL" ]; then
-          echo "✅ Successfully uploaded to Appetize.io"
-          echo "📱 Live Demo URL: $APP_URL"
-          echo "APPETIZE_URL=$APP_URL" >> $GITHUB_ENV
-        else
-          echo "⚠️ Failed to extract app URL from Appetize response"
+        if [ "$RESPONSE" = "UPLOAD_TIMEOUT" ]; then
+          echo "⚠️ Appetize upload timed out, but build succeeded"
           echo "APPETIZE_URL=" >> $GITHUB_ENV
+        else
+          echo "Appetize.io Response: $RESPONSE"
+          
+          # Extract app URL from response
+          APP_URL=$(echo $RESPONSE | grep -o '"publicURL":"[^"]*"' | cut -d'"' -f4)
+          
+          if [ ! -z "$APP_URL" ]; then
+            echo "✅ Successfully uploaded to Appetize.io"
+            echo "📱 Live Demo URL: $APP_URL"
+            echo "APPETIZE_URL=$APP_URL" >> $GITHUB_ENV
+          else
+            echo "⚠️ Failed to extract app URL from Appetize response"
+            echo "APPETIZE_URL=" >> $GITHUB_ENV
+          fi
         fi
+      timeout-minutes: 3
     
     - name: 📤 Upload Debug APK
-      if: github.event.inputs.build_type != 'release'
+      if: github.event.inputs.build_type != 'release' && success()
       uses: actions/upload-artifact@v4
       with:
         name: songtrybe-tv-debug-${{ github.sha }}
@@ -132,7 +174,7 @@ jobs:
         if-no-files-found: error
     
     - name: 📤 Upload Release APK
-      if: github.event.inputs.build_type != 'debug'
+      if: github.event.inputs.build_type != 'debug' && success()
       uses: actions/upload-artifact@v4
       with:
         name: songtrybe-tv-release-${{ github.sha }}
@@ -148,11 +190,19 @@ jobs:
         echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
         echo "**Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Runner:** ${{ runner.os }} with ${{ runner.arch }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
         if [ -f songtrybe-tv-app/app/build/outputs/apk/debug/app-debug.apk ]; then
           APK_SIZE=$(ls -lh songtrybe-tv-app/app/build/outputs/apk/debug/app-debug.apk | awk '{print $5}')
           echo "✅ **Debug APK:** Built successfully (Size: $APK_SIZE)" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ job.status }}" = "failure" ]; then
+          echo "❌ **Build Failed:** Check logs above for details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Common Solutions:" >> $GITHUB_STEP_SUMMARY
+          echo "- Memory issues: Check if build ran out of heap space" >> $GITHUB_STEP_SUMMARY
+          echo "- Network issues: Dependencies might not have downloaded" >> $GITHUB_STEP_SUMMARY  
+          echo "- Configuration: Check gradle.properties and build.gradle files" >> $GITHUB_STEP_SUMMARY
         fi
         
         if [ -f songtrybe-tv-app/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
@@ -163,29 +213,32 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "## 📥 Download Options" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### APK Files" >> $GITHUB_STEP_SUMMARY
-        echo "Check the **Artifacts** section below to download APK files" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
         
-        if [ ! -z "$APPETIZE_URL" ]; then
-          echo "### 🌐 Live Demo" >> $GITHUB_STEP_SUMMARY
-          echo "**Try the app instantly in your browser:**" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "### APK Files" >> $GITHUB_STEP_SUMMARY
+          echo "Check the **Artifacts** section below to download APK files" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 **[Launch Songtrybe TV Demo]($APPETIZE_URL)**" >> $GITHUB_STEP_SUMMARY
+          
+          if [ ! -z "$APPETIZE_URL" ]; then
+            echo "### 🌐 Live Demo" >> $GITHUB_STEP_SUMMARY
+            echo "**Try the app instantly in your browser:**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 **[Launch Songtrybe TV Demo]($APPETIZE_URL)**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "*No download required - runs directly in your browser!*" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "## 📱 Installation Instructions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "*No download required - runs directly in your browser!*" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the APK from Artifacts (above)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Transfer to your Android TV via USB or network" >> $GITHUB_STEP_SUMMARY
+          echo "3. Install using a file manager on your TV" >> $GITHUB_STEP_SUMMARY
+          echo "4. Launch **Songtrybe TV** from your apps" >> $GITHUB_STEP_SUMMARY
         fi
-        
-        echo "## 📱 Installation Instructions" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "1. Download the APK from Artifacts (above)" >> $GITHUB_STEP_SUMMARY
-        echo "2. Transfer to your Android TV via USB or network" >> $GITHUB_STEP_SUMMARY
-        echo "3. Install using a file manager on your TV" >> $GITHUB_STEP_SUMMARY
-        echo "4. Launch **Songtrybe TV** from your apps" >> $GITHUB_STEP_SUMMARY
     
     - name: 🏷️ Create Release (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
+      if: startsWith(github.ref, 'refs/tags/') && success()
       uses: softprops/action-gh-release@v2
       with:
         files: |
