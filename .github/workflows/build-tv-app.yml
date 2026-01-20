@@ -93,7 +93,8 @@ jobs:
       if: github.event.inputs.build_type != 'release'
       run: |
         cd songtrybe-tv-app
-        ./gradlew assembleDebug --no-daemon --max-workers=2 --stacktrace --info
+        echo "🔍 Debug build with detailed logging..."
+        ./gradlew assembleDebug --no-daemon --max-workers=2 --stacktrace --debug --scan
         echo "✅ Debug APK built successfully"
         
         # Get APK size
