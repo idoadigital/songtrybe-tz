@@ -88,6 +88,6 @@ configurations.all {
 }
 
 // Temporarily disable duplicate classes check to get basic build working
-tasks.named("checkDebugDuplicateClasses").configure {
-    isEnabled = false
+tasks.named("checkDebugDuplicateClasses") {
+    enabled = false
 }
