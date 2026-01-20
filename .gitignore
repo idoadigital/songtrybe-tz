@@ -1,0 +1,63 @@
+# Android/IntelliJ
+*.iml
+.gradle
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android Studio
+*.iws
+*.ipr
+*.swp
+*~
+
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Signing files
+*.jks
+*.keystore
+
+# Google Services (contains API keys)
+# Uncomment if you're storing google-services.json locally
+# songtrybe-tv-app/app/google-services.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+.env.local
+
+# APK/AAB files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+
+# VS Code
+.vscode/

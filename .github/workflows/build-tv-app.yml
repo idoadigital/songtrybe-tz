@@ -1,0 +1,140 @@
+name: Build Songtrybe TV App
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+    inputs:
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+          - both
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
+    
+    - name: ☕ Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+    
+    - name: 🤖 Setup Android SDK
+      uses: android-actions/setup-android@v2
+    
+    - name: 🔐 Decode google-services.json
+      env:
+        GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+      run: |
+        if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+          echo "$GOOGLE_SERVICES_JSON" | base64 --decode > songtrybe-tv-app/app/google-services.json
+          echo "✅ google-services.json decoded successfully"
+        else
+          echo "⚠️ Warning: GOOGLE_SERVICES_JSON secret not set, using existing file"
+        fi
+    
+    - name: 🔨 Grant execute permission for gradlew
+      run: |
+        cd songtrybe-tv-app
+        chmod +x gradlew
+    
+    - name: 📱 Build Debug APK
+      if: github.event.inputs.build_type != 'release'
+      run: |
+        cd songtrybe-tv-app
+        ./gradlew assembleDebug --stacktrace
+        echo "✅ Debug APK built successfully"
+        
+        # Get APK size
+        APK_SIZE=$(ls -lh app/build/outputs/apk/debug/app-debug.apk | awk '{print $5}')
+        echo "📦 Debug APK size: $APK_SIZE"
+    
+    - name: 🚀 Build Release APK
+      if: github.event.inputs.build_type != 'debug'
+      run: |
+        cd songtrybe-tv-app
+        ./gradlew assembleRelease --stacktrace
+        echo "✅ Release APK built successfully"
+        
+        # Get APK size
+        if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+          APK_SIZE=$(ls -lh app/build/outputs/apk/release/app-release-unsigned.apk | awk '{print $5}')
+          echo "📦 Release APK size: $APK_SIZE"
+        fi
+    
+    - name: 📤 Upload Debug APK
+      if: github.event.inputs.build_type != 'release'
+      uses: actions/upload-artifact@v3
+      with:
+        name: songtrybe-tv-debug-${{ github.sha }}
+        path: songtrybe-tv-app/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
+    
+    - name: 📤 Upload Release APK
+      if: github.event.inputs.build_type != 'debug'
+      uses: actions/upload-artifact@v3
+      with:
+        name: songtrybe-tv-release-${{ github.sha }}
+        path: songtrybe-tv-app/app/build/outputs/apk/release/app-release-unsigned.apk
+        retention-days: 30
+    
+    - name: 📝 Generate Build Report
+      if: always()
+      run: |
+        echo "# Build Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f songtrybe-tv-app/app/build/outputs/apk/debug/app-debug.apk ]; then
+          APK_SIZE=$(ls -lh songtrybe-tv-app/app/build/outputs/apk/debug/app-debug.apk | awk '{print $5}')
+          echo "✅ **Debug APK:** Built successfully (Size: $APK_SIZE)" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f songtrybe-tv-app/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+          APK_SIZE=$(ls -lh songtrybe-tv-app/app/build/outputs/apk/release/app-release-unsigned.apk | awk '{print $5}')
+          echo "✅ **Release APK:** Built successfully (Size: $APK_SIZE)" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📥 **Download:** Check the Artifacts section below" >> $GITHUB_STEP_SUMMARY
+    
+    - name: 🏷️ Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          songtrybe-tv-app/app/build/outputs/apk/debug/app-debug.apk
+          songtrybe-tv-app/app/build/outputs/apk/release/app-release-unsigned.apk
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        body: |
+          ## 📺 Songtrybe TV Release
+          
+          ### Installation Instructions:
+          1. Download `app-debug.apk` below
+          2. Transfer to your Android TV via USB or network
+          3. Install using a file manager
+          4. Launch Songtrybe TV from your apps
+          
+          ### What's New:
+          See commit history for changes
+          
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

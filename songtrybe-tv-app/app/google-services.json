@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "490403666256",
+    "firebase_url": "https://cowork-1ff61-default-rtdb.firebaseio.com",
+    "project_id": "cowork-1ff61",
+    "storage_bucket": "cowork-1ff61.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:490403666256:android:songtrybetv",
+        "android_client_info": {
+          "package_name": "com.songtrybe.tv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5kEXrtGH15cCa2Vl_aHXq1Hxo51SUDoE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
